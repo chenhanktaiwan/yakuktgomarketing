@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>養樂多銷售實績管理系統 (Cloud D1版)</title>
+    <style>
+        :root {
+            --primary-color: #7ba3a3;
+            --primary-dark: #5d7f7f;
+            --secondary-color: #a8c4a2;
+            --success-color: #8fb58f;
+            --danger-color: #c39ea0;
+            --warning-color: #d4c19c;
+            --white: #ffffff;
+            --border-color: #e0e0dc;
+            --shadow: 0 3px 10px rgba(123, 163, 163, 0.15);
+            --growth-color: #4caf50;
+            --decline-color: #f44336;
+            --neutral-color: #9e9e9e;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Arial', 'Microsoft JhengHei', sans-serif; line-height: 1.6; color: #5a5a5a; background: linear-gradient(135deg, #f7f7f5 0%, #eeede9 100%); min-height: 100vh; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 0 20px; }
+        
+        /* Navigation */
+        .navbar { background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%); color: var(--white); padding: 1.5rem 0; box-shadow: var(--shadow); }
+        .navbar .container { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; }
+        .navbar-title { font-size: 1.8rem; font-weight: 300; letter-spacing: 1px; }
+        .navbar-nav { display: flex; gap: 1rem; }
+        .nav-btn { background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.3); color: var(--white); padding: 0.8rem 1.5rem; border-radius: 25px; cursor: pointer; transition: all 0.3s ease; }
+        .nav-btn:hover { background: rgba(255, 255, 255, 0.2); transform: translateY(-2px); }
+        .nav-btn.active { background: var(--white); color: var(--primary-color); font-weight: 500; }
+
+        /* Main Content */
+        .main-content { padding: 3rem 0; }
+        .section { display: none; animation: fadeIn 0.5s ease-in-out; }
+        .section.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .section-header { text-align: center; margin-bottom: 3rem; }
+        .section-header h2 { color: var(--primary-color); margin-bottom: 1rem; font-size: 2.5rem; font-weight: 300; }
+        .section-header p { color: #666; font-size: 1.1rem; }
+
+        /* Forms & Cards */
+        .upload-form, .period-range-container, .comparison-container, .ranking-container, .detailed-comparison-table, .data-table-container { background: var(--white); padding: 2.5rem; border-radius: 20px; box-shadow: var(--shadow); margin-bottom: 2rem; }
+        .form-group { margin-bottom: 1.5rem; }
+        .form-label { display: block; margin-bottom: 0.8rem; font-weight: 500; color: var(--primary-color); font-size: 1rem; }
+        .form-control { width: 100%; padding: 1rem; border: 2px solid var(--border-color); border-radius: 12px; font-size: 1rem; background: rgba(255, 255, 255, 0.9); }
+        
+        /* Upload Zone */
+        .upload-zone { border: 3px dashed var(--primary-color); border-radius: 20px; padding: 3rem; text-align: center; transition: all 0.3s ease; background: linear-gradient(135deg, rgba(123, 163, 163, 0.05) 0%, rgba(168, 196, 162, 0.05) 100%); margin: 2rem 0; }
+        .upload-zone.drag-over { border-color: var(--success-color); background: rgba(143, 181, 143, 0.1); transform: scale(1.02); }
+
+        /* Buttons */
+        .btn { padding: 1rem 2rem; border: none; border-radius: 15px; cursor: pointer; font-size: 1rem; font-weight: 500; margin: 0.5rem; transition: all 0.3s ease; }
+        .btn-primary { background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%); color: var(--white); box-shadow: 0 4px 15px rgba(123, 163, 163, 0.3); }
+        .btn-secondary { background: linear-gradient(135deg, var(--secondary-color) 0%, #95b58f 100%); color: var(--white); box-shadow: 0 4px 15px rgba(168, 196, 162, 0.3); }
+        .btn-outline { background: transparent; border: 2px solid var(--primary-color); color: var(--primary-color); }
+        .btn:hover { transform: translateY(-2px); }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+        .form-actions { display: flex; gap: 1rem; margin-top: 2rem; flex-wrap: wrap; justify-content: center; }
+
+        /* Stats & Tables */
+        .summary-cards, .comparison-summary-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem; margin-bottom: 3rem; }
+        .summary-card, .comparison-card { background: var(--white); padding: 2rem; border-radius: 20px; box-shadow: var(--shadow); text-align: center; border-left: 5px solid var(--primary-color); }
+        .summary-value, .comparison-value { font-size: 2.2rem; color: var(--primary-dark); font-weight: bold; }
+        
+        /* Comparison specific */
+        .comparison-container { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
+        .period-selector { background: var(--white); padding: 2rem; border-radius: 15px; box-shadow: var(--shadow); }
+        .period-selector.period-a { border-left: 5px solid var(--primary-color); }
+        .period-selector.period-b { border-left: 5px solid var(--secondary-color); }
+        .comparison-value.growth { color: var(--growth-color); }
+        .comparison-value.decline { color: var(--decline-color); }
+        .growth-indicator { padding: 0.3rem 0.6rem; border-radius: 15px; font-size: 0.8rem; font-weight: 500; display: inline-block; }
+        .growth-indicator.growth { background: rgba(76, 175, 80, 0.1); color: var(--growth-color); }
+        .growth-indicator.decline { background: rgba(244, 67, 54, 0.1); color: var(--decline-color); }
+
+        /* Table Scroll */
+        .table-main-container { width: 100%; overflow-x: auto; max-height: 600px; border: 1px solid var(--border-color); }
+        .products-table, .detailed-table, .ranking-table { width: 100%; border-collapse: collapse; min-width: 1000px; }
+        th, td { padding: 0.8rem; border: 1px solid var(--border-color); text-align: center; }
+        th { background: linear-gradient(135deg, rgba(123, 163, 163, 0.2) 0%, rgba(168, 196, 162, 0.2) 100%); position: sticky; top: 0; z-index: 10; }
+        
+        /* Storage Status */
+        .storage-status { background: rgba(143, 181, 143, 0.1); padding: 1.5rem; border-radius: 15px; margin-bottom: 2rem; border-left: 4px solid var(--success-color); }
+        
+        /* Message Toasts */
+        .success-message { background: var(--success-color); color: white; padding: 1rem; border-radius: 15px; margin: 1rem 0; text-align: center; }
+        .error-message { background: var(--danger-color); color: white; padding: 1rem; border-radius: 15px; margin: 1rem 0; text-align: center; }
+    </style>
+    <script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <h1 class="navbar-title">養樂多銷售實績管理系統 (Cloud D1版)</h1>
+            <div class="navbar-nav">
+                <button class="nav-btn active" data-section="upload">上傳資料</button>
+                <button class="nav-btn" data-section="view">查看實績</button>
+                <button class="nav-btn" data-section="analysis">對比分析</button>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container main-content">
+        <section id="upload-section" class="section active">
+            <div class="section-header">
+                <h2>上傳月份資料</h2>
+                <p>資料將安全儲存於雲端資料庫</p>
+            </div>
+            
+            <div class="storage-status">
+                <div class="storage-info" id="storage-info">
+                    ☁️ 雲端資料庫狀態：<span id="stored-months">檢查中...</span><br>
+                    <span id="stored-periods-list"></span>
+                </div>
+            </div>
+            
+            <div class="upload-form">
+                <div class="form-group">
+                    <label class="form-label">選擇年份與月份</label>
+                    <div style="display:flex; gap:1rem;">
+                        <select id="upload-year" class="form-control">
+                            <option value="2024">2024</option><option value="2025" selected>2025</option><option value="2026">2026</option>
+                        </select>
+                        <select id="upload-month" class="form-control">
+                            <option value="01">1月</option><option value="02">2月</option><option value="03">3月</option>
+                            <option value="04">4月</option><option value="05">5月</option><option value="06">6月</option>
+                            <option value="07">7月</option><option value="08">8月</option><option value="09" selected>9月</option>
+                            <option value="10">10月</option><option value="11">11月</option><option value="12">12月</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <div class="upload-zone" id="upload-zone">
+                        <p>拖拽 Excel 檔案到此處</p>
+                        <input type="file" id="file-input" accept=".xlsx,.xls" hidden>
+                        <button type="button" class="btn btn-outline" onclick="document.getElementById('file-input').click()">選擇Excel檔案</button>
+                    </div>
+                </div>
+                
+                <div class="form-actions">
+                    <button type="button" class="btn btn-primary" id="upload-btn" disabled>處理Excel檔案</button>
+                    <button type="button" class="btn btn-outline" id="reload-cloud-btn">重新載入雲端資料</button>
+                </div>
+                <div id="status-messages"></div>
+            </div>
+        </section>
+
+        <section id="view-section" class="section">
+            <div class="section-header"><h2>查看實績</h2></div>
+            <div class="period-range-container">
+                <h3 style="text-align:center; color:var(--primary-color);">查詢範圍</h3>
+                <div style="display:flex; justify-content:center; gap:1rem; margin-top:1rem;">
+                    <select id="start-year" class="form-control" style="width:auto;"><option value="2025">2025年</option></select>
+                    <select id="start-month" class="form-control" style="width:auto;"><option value="01">1月</option></select>
+                    <span>至</span>
+                    <select id="end-year" class="form-control" style="width:auto;"><option value="2025">2025年</option></select>
+                    <select id="end-month" class="form-control" style="width:auto;"><option value="12">12月</option></select>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-primary" id="query-btn">查詢資料</button>
+                    <button type="button" class="btn btn-secondary" id="export-csv-btn">匯出 CSV</button>
+                </div>
+            </div>
+            
+            <div class="data-table-container">
+                <div class="summary-cards">
+                    <div class="summary-card"><h3>總金額</h3><div class="summary-value" id="total-revenue">-</div></div>
+                    <div class="summary-card"><h3>總訂單數</h3><div class="summary-value" id="total-orders">-</div></div>
+                </div>
+                <div class="table-main-container">
+                    <table class="products-table">
+                        <thead><tr id="table-header-row"><th>產品名稱</th></tr></thead>
+                        <tbody id="products-table-body"><tr><td class="no-data">請查詢資料</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <section id="analysis-section" class="section">
+            <div class="section-header"><h2>對比分析</h2></div>
+            <div class="comparison-container">
+                <div class="period-selector period-a">
+                    <h3>基準期間 (A)</h3>
+                    <select id="period-a-year" class="form-control"><option value="2025">2025年</option></select>
+                    <select id="period-a-month" class="form-control"><option value="08">8月</option></select>
+                </div>
+                <div class="period-selector period-b">
+                    <h3>對比期間 (B)</h3>
+                    <select id="period-b-year" class="form-control"><option value="2025">2025年</option></select>
+                    <select id="period-b-month" class="form-control"><option value="09">9月</option></select>
+                </div>
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn btn-primary" id="compare-btn">開始對比</button>
+            </div>
+            <div id="comparison-results" style="display:none; margin-top:2rem;">
+                <div class="comparison-summary-cards">
+                    <div class="comparison-card"><h3>營收變化</h3><div class="comparison-value" id="revenue-comparison">-</div></div>
+                    <div class="comparison-card"><h3>訂單變化</h3><div class="comparison-value" id="orders-comparison">-</div></div>
+                </div>
+                <div class="detailed-comparison-table">
+                    <h3>產品詳細對比</h3>
+                    <div class="table-main-container">
+                        <table class="detailed-table">
+                            <thead><tr><th>產品</th><th>期間A</th><th>期間B</th><th>差異</th><th>成長率</th></tr></thead>
+                            <tbody id="detailed-comparison-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        // 設定與變數
+        let salesData = [];
+        let filteredData = [];
+        let uploadedFile = null;
+        const SPECIFIED_LOCATIONS = ['總計', '基隆', '吉林', '大同', '三重', '古亭', '新莊', '桃園', '宜蘭', '羅東', '三重宅配', '中山宅配', '益樂多新竹', '益樂多中壢', '佳樂多', '優樂多', '雲林', '高樂多三民', '高樂多鳳山', '花蓮', '苗栗', '彰化', '嘉義', '台南', '屏東', '養樂食品'];
+        const LOCATION_MAPPING = {'新竹市':'益樂多新竹', '中壢':'益樂多中壢', '豐原':'佳樂多', '南區':'優樂多', '三民':'高樂多三民', '鳳山':'高樂多鳳山'};
+        const SKIP_COLS = ['雅可樂多公司合計', '優樂多公司小計', '高樂多公司合計', '益樂多公司合計', '佳樂多公司合計', '經銷處合計'];
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            setupNavigation();
+            setupFileUpload();
+            setupEventListeners();
+            loadFromCloudflare(); // 啟動時讀取雲端
+        });
+
+        // 1. 上傳到 Cloudflare
+        async function uploadToCloudflare(processedData) {
+            const btn = document.getElementById('upload-btn');
+            btn.disabled = true; btn.textContent = '☁️ 上傳中...';
+            try {
+                const payload = processedData.map(item => ({
+                    year: parseInt(item.month.split('-')[0]),
+                    month: parseInt(item.month.split('-')[1]),
+                    region: item.location,
+                    product: item.product_name,
+                    metric: item.metric_type,
+                    value: item.value
+                }));
+                const res = await fetch('/api/records', { method: 'POST', body: JSON.stringify(payload) });
+                if(res.ok) { showMsg('✅ 上傳成功！', 'success'); await loadFromCloudflare(); }
+                else { showMsg('❌ 上傳失敗: ' + await res.text(), 'error'); }
+            } catch(e) { console.error(e); showMsg('❌ 網路錯誤', 'error'); }
+            finally { btn.disabled = false; btn.textContent = '處理Excel檔案'; }
+        }
+
+        // 2. 從 Cloudflare 讀取
+        async function loadFromCloudflare() {
+            document.getElementById('stored-months').textContent = "載入中...";
+            try {
+                const res = await fetch('/api/records');
+                if(!res.ok) throw new Error("API Error");
+                const cloudData = await res.json();
+                
+                salesData = cloudData.map(item => ({
+                    month: `${item.year}-${String(item.month).padStart(2,'0')}`,
+                    metric_type: item.metric,
+                    product_name: item.product,
+                    location: item.region,
+                    value: item.value
+                }));
+                
+                const months = [...new Set(salesData.map(d => d.month))].sort().join(', ');
+                document.getElementById('stored-months').textContent = salesData.length > 0 ? `${[...new Set(salesData.map(d => d.month))].length} 個月份` : "0";
+                document.getElementById('stored-periods-list').textContent = months ? `(${months})` : "";
+            } catch(e) {
+                document.getElementById('storage-info').innerHTML = "<span style='color:red'>⚠️ 無法連接資料庫 (請確認 functions 資料夾已上傳)</span>";
+            }
+        }
+
+        // Excel 處理邏輯
+        async function processExcelFile() {
+            if(!uploadedFile) return showMsg('請選擇檔案', 'error');
+            const btn = document.getElementById('upload-btn');
+            btn.textContent = '讀取中...';
+            
+            try {
+                const data = await readFile(uploadedFile);
+                const workbook = XLSX.read(data, {type:'array'});
+                const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                const json = XLSX.utils.sheet_to_json(sheet, {header:1});
+                
+                const year = document.getElementById('upload-year').value;
+                const month = document.getElementById('upload-month').value;
+                const monthKey = `${year}-${month}`;
+                
+                const processed = [];
+                // 讀取總計 C2, C3
+                if(json[1] && json[1][2]) processed.push({month:monthKey, metric_type:'訂單筆數', product_name:'訂單筆數', location:'總計', value:parseInt(json[1][2])||0});
+                if(json[2] && json[2][2]) processed.push({month:monthKey, metric_type:'訂單金額', product_name:'訂單金額', location:'總計', value:parseInt(json[2][2])||0});
+
+                // 讀取產品
+                const headers = json[0] || [];
+                for(let i=3; i<json.length; i++) {
+                    const row = json[i];
+                    if(!row || !row[0] || !row[1]) continue;
+                    const metric = row[0]; // 訂購數量/贈送數量
+                    const product = row[1];
+                    if(metric !== '訂購數量' && metric !== '贈送數量') continue;
+
+                    for(let j=2; j<row.length; j++) {
+                        let loc = headers[j];
+                        if(!loc || SKIP_COLS.includes(loc)) continue;
+                        loc = LOCATION_MAPPING[loc] || loc;
+                        const val = parseInt(row[j]) || 0;
+                        if(val > 0) processed.push({month:monthKey, metric_type:metric, product_name:product, location:loc, value:val});
+                    }
+                }
+                
+                await uploadToCloudflare(processed);
+            } catch(e) {
+                console.error(e);
+                showMsg('檔案處理失敗: ' + e.message, 'error');
+                btn.textContent = '處理Excel檔案';
+            }
+        }
+
+        // 查看實績查詢
+        function queryData() {
+            const sy = document.getElementById('start-year').value, sm = document.getElementById('start-month').value;
+            const ey = document.getElementById('end-year').value, em = document.getElementById('end-month').value;
+            const start = `${sy}-${sm}`, end = `${ey}-${em}`;
+            
+            filteredData = salesData.filter(d => d.month >= start && d.month <= end);
+            if(filteredData.length === 0) return showMsg('查無資料', 'error');
+
+            // 總計更新
+            const orders = filteredData.filter(d => d.product_name === '訂單筆數').reduce((s,i) => s+i.value, 0);
+            const rev = filteredData.filter(d => d.product_name === '訂單金額').reduce((s,i) => s+i.value, 0);
+            document.getElementById('total-orders').textContent = orders.toLocaleString();
+            document.getElementById('total-revenue').textContent = rev.toLocaleString();
+
+            // 表格更新
+            updateTable(filteredData);
+            showMsg(`查詢完成: ${start} ~ ${end}`, 'success');
+        }
+
+        function updateTable(data) {
+            const tbody = document.getElementById('products-table-body');
+            const thead = document.getElementById('table-header-row');
+            
+            // 建立表頭
+            let thHtml = '<th>產品名稱</th>';
+            SPECIFIED_LOCATIONS.forEach(loc => thHtml += `<th>${loc}</th>`);
+            thead.innerHTML = thHtml;
+
+            // 建立內容
+            const products = [...new Set(data.filter(d => d.metric_type === '訂購數量').map(d => d.product_name))];
+            let html = '';
+            
+            ['訂購數量', '贈送數量'].forEach(metric => {
+                html += `<tr style="background:#eee;font-weight:bold;"><td colspan="${SPECIFIED_LOCATIONS.length+1}">${metric}</td></tr>`;
+                products.forEach(prod => {
+                    const rowData = data.filter(d => d.product_name === prod && d.metric_type === metric);
+                    if(rowData.length === 0) return;
+                    
+                    html += `<tr><td style="text-align:left;">${prod}</td>`;
+                    SPECIFIED_LOCATIONS.forEach(loc => {
+                        const val = rowData.filter(d => d.location === loc).reduce((s,i) => s+i.value, 0);
+                        html += `<td style="color:${val>0?'#333':'#ccc'}">${val>0?val.toLocaleString():'-'}</td>`;
+                    });
+                    html += '</tr>';
+                });
+            });
+            tbody.innerHTML = html || '<tr><td colspan="100">無資料</td></tr>';
+        }
+
+        // 對比分析
+        function compareData() {
+            const pa = `${document.getElementById('period-a-year').value}-${document.getElementById('period-a-month').value}`;
+            const pb = `${document.getElementById('period-b-year').value}-${document.getElementById('period-b-month').value}`;
+            
+            const da = salesData.filter(d => d.month === pa), db = salesData.filter(d => d.month === pb);
+            if(da.length === 0 || db.length === 0) return showMsg('資料不足，無法對比', 'error');
+
+            const revA = da.filter(d => d.product_name === '訂單金額').reduce((s,i) => s+i.value, 0);
+            const revB = db.filter(d => d.product_name === '訂單金額').reduce((s,i) => s+i.value, 0);
+            const revDiff = revB - revA;
+            const revRate = revA ? (revDiff/revA)*100 : 0;
+            
+            const ordA = da.filter(d => d.product_name === '訂單筆數').reduce((s,i) => s+i.value, 0);
+            const ordB = db.filter(d => d.product_name === '訂單筆數').reduce((s,i) => s+i.value, 0);
+            const ordDiff = ordB - ordA;
+
+            document.getElementById('comparison-results').style.display = 'block';
+            document.getElementById('revenue-comparison').innerHTML = `${revRate.toFixed(1)}% <span style="font-size:1rem;color:#666">(${revDiff>0?'+':''}${revDiff.toLocaleString()})</span>`;
+            document.getElementById('revenue-comparison').className = `comparison-value ${revRate>=0?'growth':'decline'}`;
+            document.getElementById('orders-comparison').textContent = `${ordDiff>0?'+':''}${ordDiff} 筆`;
+
+            // 詳細表格
+            const products = [...new Set([...da, ...db].filter(d => d.metric_type === '訂購數量').map(d => d.product_name))];
+            let html = '';
+            products.forEach(prod => {
+                const valA = da.filter(d => d.product_name === prod && d.metric_type === '訂購數量').reduce((s,i) => s+i.value, 0);
+                const valB = db.filter(d => d.product_name === prod && d.metric_type === '訂購數量').reduce((s,i) => s+i.value, 0);
+                const diff = valB - valA;
+                const rate = valA ? (diff/valA)*100 : (valB?100:0);
+                
+                html += `<tr>
+                    <td style="text-align:left">${prod}</td>
+                    <td>${valA.toLocaleString()}</td><td>${valB.toLocaleString()}</td>
+                    <td style="color:${diff>=0?'green':'red'}">${diff>0?'+':''}${diff.toLocaleString()}</td>
+                    <td><span class="growth-indicator ${rate>=0?'growth':'decline'}">${rate.toFixed(1)}%</span></td>
+                </tr>`;
+            });
+            document.getElementById('detailed-comparison-body').innerHTML = html;
+        }
+
+        // 工具
+        function setupNavigation() {
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.onclick = () => {
+                    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+                    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+                    btn.classList.add('active');
+                    document.getElementById(btn.dataset.section + '-section').classList.add('active');
+                }
+            });
+        }
+        function setupFileUpload() {
+            const zone = document.getElementById('upload-zone'), input = document.getElementById('file-input');
+            zone.ondragover = e => { e.preventDefault(); zone.classList.add('drag-over'); };
+            zone.ondragleave = () => zone.classList.remove('drag-over');
+            zone.ondrop = e => { e.preventDefault(); zone.classList.remove('drag-over'); validateFile(e.dataTransfer.files[0]); };
+            input.onchange = e => validateFile(e.target.files[0]);
+        }
+        function setupEventListeners() {
+            document.getElementById('upload-btn').onclick = processExcelFile;
+            document.getElementById('reload-cloud-btn').onclick = loadFromCloudflare;
+            document.getElementById('query-btn').onclick = queryData;
+            document.getElementById('compare-btn').onclick = compareData;
+        }
+        function validateFile(file) {
+            if(!file || (!file.name.endsWith('.xls') && !file.name.endsWith('.xlsx'))) return showMsg('格式錯誤', 'error');
+            uploadedFile = file;
+            document.getElementById('upload-btn').disabled = false;
+            showMsg(`已選擇: ${file.name}`, 'success');
+        }
+        function readFile(file) {
+            return new Promise((resolve,reject) => {
+                const reader = new FileReader();
+                reader.onload = e => resolve(e.target.result);
+                reader.onerror = reject;
+                reader.readAsArrayBuffer(file);
+            });
+        }
+        function showMsg(txt, type) {
+            const d = document.createElement('div');
+            d.className = type === 'error' ? 'error-message' : 'success-message';
+            d.textContent = txt;
+            document.getElementById('status-messages').appendChild(d);
+            setTimeout(() => d.remove(), 3000);
+        }
+    </script>
+</body>
+</html>

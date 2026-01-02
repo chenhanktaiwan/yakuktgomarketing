@@ -108,7 +108,7 @@
         <section id="upload-section" class="section active">
             <div class="section-header">
                 <h2>上傳月份資料</h2>
-                <p>資料將安全儲存於雲端資料庫 (新上傳會自動覆蓋舊資料)</p>
+                <p>資料將安全儲存於雲端資料庫 (重複上傳將自動覆蓋舊資料)</p>
             </div>
             
             <div class="storage-status">
@@ -245,23 +245,35 @@
     </main>
 
     <script>
-        // 設定與變數
         let salesData = [];
         let filteredData = [];
         let uploadedFile = null;
         const SPECIFIED_LOCATIONS = ['總計', '基隆', '吉林', '大同', '三重', '古亭', '新莊', '桃園', '宜蘭', '羅東', '三重宅配', '中山宅配', '益樂多新竹', '益樂多中壢', '佳樂多', '優樂多', '雲林', '高樂多三民', '高樂多鳳山', '花蓮', '苗栗', '彰化', '嘉義', '台南', '屏東', '養樂食品'];
         const LOCATION_MAPPING = {'新竹市':'益樂多新竹', '中壢':'益樂多中壢', '豐原':'佳樂多', '南區':'優樂多', '三民':'高樂多三民', '鳳山':'高樂多鳳山'};
         const SKIP_COLS = ['雅可樂多公司合計', '優樂多公司小計', '高樂多公司合計', '益樂多公司合計', '佳樂多公司合計', '經銷處合計'];
+        
+        // ⭐️ 標準產品順序 (用於排序)
+        const ALL_PRODUCTS = [
+            "養樂多", "養樂多300LIGHT", "養樂多300", "新養樂多", "優酪乳原味",
+            "優酪乳草莓", "優酪乳Light", "優酪乳無加糖", "全脂鮮乳", "高級鮮乳",
+            "咖啡牛奶", "巧克力牛奶", "特選綠奶茶", "100%蘋果汁", "100%柳橙綜合果汁",
+            "養樂多野菜綜合蔬果汁", "養樂多野菜綜合蔬果汁 蘋果＆紅蘿蔔",
+            "養樂多野菜綜合蔬果汁 白葡萄＆菠菜", "養樂多野菜綜合蔬果汁 紫色蔬果",
+            "養樂多鮮豆漿", "超無限運動飲料", "養樂多天然水0.6L", "蕃爽麗茶", "養樂多黑醋",
+            "養樂多優格碳酸飲料", "My Time 膠原布丁", "乾麵物語擔擔麵", "乾麵物語魚介醬油沾麵",
+            "乾麵物語豚骨醬油拉麵", "麵許皆傳醬油", "麵許皆傳鹽味", "麵許皆傳豚骨",
+            "友屋濾泡研磨咖啡", "友屋濾泡研磨咖啡禮盒", "養樂多順暢青汁", "養樂多我的青汁-30包",
+            "養樂多羽衣甘藍蔬果昔", "養樂多葡萄糖胺", "養樂多魚油", "養樂多護手霜",
+            "MOMMY 馬克杯", "禮盒W01"
+        ];
 
-        // 初始化
         document.addEventListener('DOMContentLoaded', () => {
             setupNavigation();
             setupFileUpload();
             setupEventListeners();
-            loadFromCloudflare(); // 啟動時讀取雲端
+            loadFromCloudflare();
         });
 
-        // 1. 上傳到 Cloudflare
         async function uploadToCloudflare(processedData) {
             const btn = document.getElementById('upload-btn');
             btn.disabled = true; btn.textContent = '☁️ 上傳中...';
@@ -281,7 +293,7 @@
             finally { btn.disabled = false; btn.textContent = '處理Excel檔案'; }
         }
 
-        // 2. 從 Cloudflare 讀取 (⭐️ 新增：自動過濾重複資料，保留最新上傳的)
+        // 2. 從 Cloudflare 讀取 (⭐️ 強制去重邏輯)
         async function loadFromCloudflare() {
             document.getElementById('stored-months').textContent = "載入中...";
             try {
@@ -289,10 +301,11 @@
                 if(!res.ok) throw new Error("API Error");
                 let cloudData = await res.json();
                 
-                // 排序：ID 越大代表越新 (DESC)
+                // 1. 先按 ID 倒序排列 (ID越大 = 越晚匯入 = 越新)
                 cloudData.sort((a, b) => b.id - a.id);
 
-                // 使用 Map 進行除重：key = "年-月-地區-產品-指標"
+                // 2. 使用 Map 進行嚴格去重：Key = "年-月-地區-產品-指標"
+                // 由於已經是倒序，Map.set 會保留遇到的第一筆 (也就是最新的)，舊的同 Key 資料會被忽略
                 const uniqueMap = new Map();
                 cloudData.forEach(item => {
                     const key = `${item.year}-${item.month}-${item.region}-${item.product}-${item.metric}`;
@@ -301,7 +314,7 @@
                     }
                 });
 
-                // 轉回陣列
+                // 3. 轉回陣列
                 const cleanData = Array.from(uniqueMap.values());
                 
                 salesData = cleanData.map(item => ({
@@ -316,12 +329,11 @@
                 document.getElementById('stored-months').textContent = salesData.length > 0 ? `${[...new Set(salesData.map(d => d.month))].length} 個月份` : "0";
                 document.getElementById('stored-periods-list').textContent = months ? `(${months})` : "";
             } catch(e) {
-                document.getElementById('storage-info').innerHTML = "<span style='color:red'>❌ 無法連接雲端資料庫（請檢查 functions 資料夾是否正確部署）</span>";
+                document.getElementById('storage-info').innerHTML = "<span style='color:red'>❌ 無法連接雲端資料庫</span>";
                 console.error("載入失敗", e);
             }
         }
 
-        // Excel 處理邏輯
         async function processExcelFile() {
             if(!uploadedFile) return showMsg('請選擇檔案', 'error');
             const btn = document.getElementById('upload-btn');
@@ -340,45 +352,27 @@
                 const processed = [];
                 const headers = json[0] || [];
 
-                // ⭐️ 修正：遍歷所有欄位以獲取每個營業所的「訂單筆數」 (Row 2, Index 1)
+                // 抓取各區的「訂單筆數」(Row 2)
                 if (json.length > 1) {
                     const row = json[1];
                     for (let j = 2; j < row.length && j < headers.length; j++) {
                         let loc = headers[j];
                         if (!loc || SKIP_COLS.includes(loc)) continue;
                         loc = LOCATION_MAPPING[loc] || loc;
-                        
                         const val = parseInt(row[j]) || 0;
-                        if (val > 0) {
-                            processed.push({
-                                month: monthKey,
-                                metric_type: '訂單筆數',
-                                product_name: '訂單筆數',
-                                location: loc,
-                                value: val
-                            });
-                        }
+                        if (val > 0) processed.push({month:monthKey, metric_type:'訂單筆數', product_name:'訂單筆數', location:loc, value:val});
                     }
                 }
 
-                // ⭐️ 修正：遍歷所有欄位以獲取每個營業所的「訂單金額」 (Row 3, Index 2)
+                // 抓取各區的「訂單金額」(Row 3)
                 if (json.length > 2) {
                     const row = json[2];
                     for (let j = 2; j < row.length && j < headers.length; j++) {
                         let loc = headers[j];
                         if (!loc || SKIP_COLS.includes(loc)) continue;
                         loc = LOCATION_MAPPING[loc] || loc;
-                        
                         const val = parseInt(row[j]) || 0;
-                        if (val > 0) {
-                            processed.push({
-                                month: monthKey,
-                                metric_type: '訂單金額',
-                                product_name: '訂單金額',
-                                location: loc,
-                                value: val
-                            });
-                        }
+                        if (val > 0) processed.push({month:monthKey, metric_type:'訂單金額', product_name:'訂單金額', location:loc, value:val});
                     }
                 }
 
@@ -386,7 +380,7 @@
                 for(let i=3; i<json.length; i++) {
                     const row = json[i];
                     if(!row || !row[0] || !row[1]) continue;
-                    const metric = row[0]; // 訂購數量/贈送數量
+                    const metric = row[0]; 
                     const product = row[1];
                     if(metric !== '訂購數量' && metric !== '贈送數量') continue;
 
@@ -407,7 +401,6 @@
             }
         }
 
-        // 查看實績查詢
         function queryData() {
             const sy = document.getElementById('start-year').value, sm = document.getElementById('start-month').value;
             const ey = document.getElementById('end-year').value, em = document.getElementById('end-month').value;
@@ -416,13 +409,11 @@
             filteredData = salesData.filter(d => d.month >= start && d.month <= end);
             if(filteredData.length === 0) return showMsg('查無資料', 'error');
 
-            // 總計更新
-            const orders = filteredData.filter(d => d.product_name === '訂單筆數').reduce((s,i) => s+i.value, 0);
-            const rev = filteredData.filter(d => d.product_name === '訂單金額').reduce((s,i) => s+i.value, 0);
+            const orders = filteredData.filter(d => d.product_name === '訂單筆數' && d.location === '總計').reduce((s,i) => s+i.value, 0);
+            const rev = filteredData.filter(d => d.product_name === '訂單金額' && d.location === '總計').reduce((s,i) => s+i.value, 0);
             document.getElementById('total-orders').textContent = orders.toLocaleString();
             document.getElementById('total-revenue').textContent = rev.toLocaleString();
 
-            // 表格更新
             updateTable(filteredData);
             showMsg(`查詢完成: ${start} ~ ${end}`, 'success');
         }
@@ -431,40 +422,37 @@
             const tbody = document.getElementById('products-table-body');
             const thead = document.getElementById('table-header-row');
             
-            // 建立表頭
             let thHtml = '<th>產品名稱</th>';
             SPECIFIED_LOCATIONS.forEach(loc => thHtml += `<th>${loc}</th>`);
             thead.innerHTML = thHtml;
 
-            // 建立內容
             let html = '';
 
-            // 1. 先顯示總表資訊 (訂單與金額)
+            // 1. 總表資訊
             html += `<tr style="background:#e3f2fd; font-weight:bold; color:#0d47a1; text-align:left;"><td colspan="${SPECIFIED_LOCATIONS.length + 1}">📊 總表資訊 (訂單與金額)</td></tr>`;
             
-            const summaryMetrics = ['訂單筆數', '訂單金額'];
-            summaryMetrics.forEach(metric => {
+            ['訂單筆數', '訂單金額'].forEach(metric => {
                 const rowData = data.filter(d => d.product_name === metric);
-                
                 html += `<tr><td style="text-align:left; font-weight:bold; background:#f5f5f5;">${metric}</td>`;
-                
                 SPECIFIED_LOCATIONS.forEach(loc => {
                     const val = rowData.filter(d => d.location === loc).reduce((s,i) => s+i.value, 0);
-                    // ⭐️ 修改：有數值就顯示，不論是不是總計
                     let style = 'color:#ccc;';
-                    if (loc === '總計') {
-                        style = 'color:#d32f2f; font-weight:bold; font-size:1.1em;';
-                    } else if (val > 0) {
-                        style = 'color:#333; font-weight:500;';
-                    }
-                    
+                    if (loc === '總計') style = 'color:#d32f2f; font-weight:bold; font-size:1.1em;';
+                    else if (val > 0) style = 'color:#333; font-weight:500;';
                     html += `<td style="${style}">${val > 0 ? val.toLocaleString() : '-'}</td>`;
                 });
                 html += '</tr>';
             });
 
-            // 2. 再顯示產品明細
-            const products = [...new Set(data.filter(d => d.metric_type === '訂購數量').map(d => d.product_name))];
+            // 2. 產品明細 (⭐️ 修正：依據 ALL_PRODUCTS 順序進行排序，防止倒序)
+            let products = [...new Set(data.filter(d => d.metric_type === '訂購數量').map(d => d.product_name))];
+            
+            products.sort((a, b) => {
+                const indexA = ALL_PRODUCTS.indexOf(a);
+                const indexB = ALL_PRODUCTS.indexOf(b);
+                // 如果找不到產品(index為-1)，把它放到最後面
+                return (indexA === -1 ? 999 : indexA) - (indexB === -1 ? 999 : indexB);
+            });
             
             ['訂購數量', '贈送數量'].forEach(metric => {
                 html += `<tr style="background:#eee; font-weight:bold;"><td colspan="${SPECIFIED_LOCATIONS.length+1}">${metric}</td></tr>`;
@@ -483,7 +471,6 @@
             tbody.innerHTML = html || '<tr><td colspan="100">無資料</td></tr>';
         }
 
-        // 對比分析
         function compareData() {
             const pa = `${document.getElementById('period-a-year').value}-${document.getElementById('period-a-month').value}`;
             const pb = `${document.getElementById('period-b-year').value}-${document.getElementById('period-b-month').value}`;
@@ -491,13 +478,13 @@
             const da = salesData.filter(d => d.month === pa), db = salesData.filter(d => d.month === pb);
             if(da.length === 0 || db.length === 0) return showMsg('資料不足，無法對比', 'error');
 
-            const revA = da.filter(d => d.product_name === '訂單金額').reduce((s,i) => s+i.value, 0);
-            const revB = db.filter(d => d.product_name === '訂單金額').reduce((s,i) => s+i.value, 0);
+            const revA = da.filter(d => d.product_name === '訂單金額' && d.location === '總計').reduce((s,i) => s+i.value, 0);
+            const revB = db.filter(d => d.product_name === '訂單金額' && d.location === '總計').reduce((s,i) => s+i.value, 0);
             const revDiff = revB - revA;
             const revRate = revA ? (revDiff/revA)*100 : 0;
             
-            const ordA = da.filter(d => d.product_name === '訂單筆數').reduce((s,i) => s+i.value, 0);
-            const ordB = db.filter(d => d.product_name === '訂單筆數').reduce((s,i) => s+i.value, 0);
+            const ordA = da.filter(d => d.product_name === '訂單筆數' && d.location === '總計').reduce((s,i) => s+i.value, 0);
+            const ordB = db.filter(d => d.product_name === '訂單筆數' && d.location === '總計').reduce((s,i) => s+i.value, 0);
             const ordDiff = ordB - ordA;
 
             document.getElementById('comparison-results').style.display = 'block';
@@ -505,7 +492,6 @@
             document.getElementById('revenue-comparison').className = `comparison-value ${revRate>=0?'growth':'decline'}`;
             document.getElementById('orders-comparison').textContent = `${ordDiff>0?'+':''}${ordDiff} 筆`;
 
-            // 詳細表格
             const products = [...new Set([...da, ...db].filter(d => d.metric_type === '訂購數量').map(d => d.product_name))];
             let html = '';
             products.forEach(prod => {
@@ -524,7 +510,6 @@
             document.getElementById('detailed-comparison-body').innerHTML = html;
         }
 
-        // 工具
         function setupNavigation() {
             document.querySelectorAll('.nav-btn').forEach(btn => {
                 btn.onclick = () => {

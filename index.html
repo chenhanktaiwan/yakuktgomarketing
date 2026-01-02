@@ -80,19 +80,52 @@
         /* Table Scroll */
         .table-main-container { width: 100%; overflow-x: auto; max-height: 600px; border: 1px solid var(--border-color); }
         .products-table, .detailed-table, .ranking-table { width: 100%; border-collapse: collapse; min-width: 1000px; }
-        th, td { padding: 0.8rem; border: 1px solid var(--border-color); text-align: center; }
         
-        /* 不透明表頭 */
+        /* ⭐️ 修正：表格欄位寬度與高度統一 */
+        th, td { 
+            padding: 0.5rem; 
+            border: 1px solid var(--border-color); 
+            text-align: center; 
+            vertical-align: middle; /* 垂直置中 */
+            height: 45px; /* 固定高度，讓表格整齊 */
+        }
+        
+        /* 不透明表頭設定 */
         th { 
             background: linear-gradient(135deg, rgba(123, 163, 163, 0.2) 0%, rgba(168, 196, 162, 0.2) 100%), #ffffff; 
             position: sticky; 
             top: 0; 
-            z-index: 10; 
+            z-index: 10;
+            font-weight: 600;
+            color: var(--primary-dark);
+        }
+
+        .products-table th, .products-table td {
+            min-width: 90px; /* ⭐️ 加寬欄位，適應四個字的營業所名稱 */
+            white-space: nowrap;
+        }
+
+        /* 產品名稱欄位特別設定 */
+        .products-table th:first-child,
+        .products-table td:first-child {
+            min-width: 220px;
+            max-width: 220px;
+            text-align: left;
+            padding-left: 1rem;
+            position: sticky;
+            left: 0;
+            z-index: 21;
+            background: linear-gradient(135deg, rgba(123, 163, 163, 0.25) 0%, rgba(168, 196, 162, 0.25) 100%), #ffffff;
+            box-shadow: 2px 0 4px rgba(0,0,0,0.1);
+        }
+
+        .products-table tbody tr:hover td {
+            background-color: rgba(123, 163, 163, 0.08);
         }
         
         /* ⭐️ 分隔列樣式 */
         .metric-separator-row td {
-            background-color: #f0f4c3 !important; /* 淺黃綠色背景 */
+            background-color: #f0f4c3 !important;
             color: #33691e !important;
             font-weight: bold;
             text-align: center;
@@ -100,7 +133,11 @@
             font-size: 1.1rem;
             border-top: 2px solid #cddc39;
             border-bottom: 2px solid #cddc39;
+            height: 50px;
         }
+
+        .number-cell.zero { color: #ccc; }
+        .number-cell.positive { color: #333; font-weight: 500; }
 
         /* Storage Status */
         .storage-status { background: rgba(143, 181, 143, 0.1); padding: 1.5rem; border-radius: 15px; margin-bottom: 2rem; border-left: 4px solid var(--success-color); }
@@ -108,6 +145,10 @@
         /* Message Toasts */
         .success-message { background: var(--success-color); color: white; padding: 1rem; border-radius: 15px; margin: 1rem 0; text-align: center; }
         .error-message { background: var(--danger-color); color: white; padding: 1rem; border-radius: 15px; margin: 1rem 0; text-align: center; }
+        
+        /* Scrollbar */
+        .horizontal-scrollbar::-webkit-scrollbar, .table-main-container::-webkit-scrollbar { height: 12px; }
+        .horizontal-scrollbar::-webkit-scrollbar-thumb, .table-main-container::-webkit-scrollbar-thumb { background: var(--primary-color); border-radius: 10px; }
     </style>
     <script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
@@ -461,33 +502,32 @@
                 return (indexA === -1 ? 999 : indexA) - (indexB === -1 ? 999 : indexB);
             });
             
-            // ⭐️ 修正邏輯：明確區分「訂購數量」與「贈送數量」的顯示規則
             const metricTypes = ['訂購數量', '贈送數量'];
 
             metricTypes.forEach(metricType => {
-                // 1. 強制顯示分隔列 (加上 metric-separator-row class)
                 html += `<tr class="metric-separator-row"><td colspan="${SPECIFIED_LOCATIONS.length + 1}">📊 ${metricType}</td></tr>`;
 
-                // 2. 顯示產品列
                 products.forEach(prod => {
                     const rowData = data.filter(d => d.product_name === prod && d.metric_type === metricType);
-                    
-                    // 計算該產品在所有地區的總和
                     const totalValue = rowData.reduce((sum, item) => sum + (item.value || 0), 0);
 
-                    // ⭐️ 核心過濾邏輯：
-                    // - 如果是「訂購數量」：全部顯示 (您之前沒說要藏)
-                    // - 如果是「贈送數量」：
-                    //    1. 總數 > 0 -> 顯示
-                    //    2. 產品名稱含 "(贈品)" -> 顯示
-                    //    3. 否則 -> 隱藏
+                    // ⭐️ 邏輯修正：
+                    // 1. 如果是「訂購數量」且名稱含「(贈品)」，則跳過不顯示
+                    if (metricType === '訂購數量' && prod.includes('(贈品)')) {
+                        return;
+                    }
+
+                    // 2. 如果是「贈送數量」，顯示條件：大於0 或 名稱含「(贈品)」
+                    // 3. 如果是「訂購數量」，顯示條件：大於0 (或不做限制)
                     let isVisible = false;
-                    if (metricType === '訂購數量') {
-                        isVisible = true; 
-                    } else {
+                    
+                    if (metricType === '贈送數量') {
                         if (totalValue > 0 || prod.includes('(贈品)')) {
                             isVisible = true;
                         }
+                    } else {
+                        // 訂購數量：如果不含(贈品)，通常都顯示，或者也可設 totalValue > 0
+                        isVisible = true;
                     }
 
                     if (isVisible) {

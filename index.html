@@ -108,7 +108,7 @@
         <section id="upload-section" class="section active">
             <div class="section-header">
                 <h2>上傳月份資料</h2>
-                <p>資料將安全儲存於雲端資料庫</p>
+                <p>資料將安全儲存於雲端資料庫 (新上傳會自動覆蓋舊資料)</p>
             </div>
             
             <div class="storage-status">
@@ -281,15 +281,30 @@
             finally { btn.disabled = false; btn.textContent = '處理Excel檔案'; }
         }
 
-        // 2. 從 Cloudflare 讀取
+        // 2. 從 Cloudflare 讀取 (⭐️ 新增：自動過濾重複資料，保留最新上傳的)
         async function loadFromCloudflare() {
             document.getElementById('stored-months').textContent = "載入中...";
             try {
                 const res = await fetch('/api/records');
                 if(!res.ok) throw new Error("API Error");
-                const cloudData = await res.json();
+                let cloudData = await res.json();
                 
-                salesData = cloudData.map(item => ({
+                // 排序：ID 越大代表越新 (DESC)
+                cloudData.sort((a, b) => b.id - a.id);
+
+                // 使用 Map 進行除重：key = "年-月-地區-產品-指標"
+                const uniqueMap = new Map();
+                cloudData.forEach(item => {
+                    const key = `${item.year}-${item.month}-${item.region}-${item.product}-${item.metric}`;
+                    if(!uniqueMap.has(key)) {
+                        uniqueMap.set(key, item);
+                    }
+                });
+
+                // 轉回陣列
+                const cleanData = Array.from(uniqueMap.values());
+                
+                salesData = cleanData.map(item => ({
                     month: `${item.year}-${String(item.month).padStart(2,'0')}`,
                     metric_type: item.metric,
                     product_name: item.product,
@@ -412,7 +427,6 @@
             showMsg(`查詢完成: ${start} ~ ${end}`, 'success');
         }
 
-        // ⭐️ 關鍵修正：顯示總表資訊，且取消非總計欄位的灰色限制
         function updateTable(data) {
             const tbody = document.getElementById('products-table-body');
             const thead = document.getElementById('table-header-row');
@@ -436,7 +450,7 @@
                 
                 SPECIFIED_LOCATIONS.forEach(loc => {
                     const val = rowData.filter(d => d.location === loc).reduce((s,i) => s+i.value, 0);
-                    // ⭐️ 修改：如果是總計，維持紅色粗體；如果是其他且有值，顯示深色，否則淺色
+                    // ⭐️ 修改：有數值就顯示，不論是不是總計
                     let style = 'color:#ccc;';
                     if (loc === '總計') {
                         style = 'color:#d32f2f; font-weight:bold; font-size:1.1em;';

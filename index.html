@@ -10,7 +10,8 @@
             --primary-dark: #5d7f7f;
             --secondary-color: #a8c4a2;
             --success-color: #8fb58f;
-            --danger-color: #c39ea0;
+            --danger-color: #c39ea0; /* 刪除按鈕用 */
+            --danger-dark: #a87e80;
             --warning-color: #d4c19c;
             --white: #ffffff;
             --border-color: #e0e0dc;
@@ -57,6 +58,11 @@
         .btn-primary { background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%); color: var(--white); box-shadow: 0 4px 15px rgba(123, 163, 163, 0.3); }
         .btn-secondary { background: linear-gradient(135deg, var(--secondary-color) 0%, #95b58f 100%); color: var(--white); box-shadow: 0 4px 15px rgba(168, 196, 162, 0.3); }
         .btn-outline { background: transparent; border: 2px solid var(--primary-color); color: var(--primary-color); }
+        
+        /* ⭐️ 刪除按鈕樣式 */
+        .btn-danger { background: linear-gradient(135deg, var(--danger-color) 0%, var(--danger-dark) 100%); color: var(--white); box-shadow: 0 4px 15px rgba(195, 158, 160, 0.3); }
+        .btn-danger:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(195, 158, 160, 0.4); }
+
         .btn:hover { transform: translateY(-2px); }
         .btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
         .form-actions { display: flex; gap: 1rem; margin-top: 2rem; flex-wrap: wrap; justify-content: center; }
@@ -81,16 +87,14 @@
         .table-main-container { width: 100%; overflow-x: auto; max-height: 600px; border: 1px solid var(--border-color); }
         .products-table, .detailed-table, .ranking-table { width: 100%; border-collapse: collapse; min-width: 1000px; }
         
-        /* ⭐️ 修正：表格欄位寬度與高度統一 */
         th, td { 
             padding: 0.5rem; 
             border: 1px solid var(--border-color); 
             text-align: center; 
-            vertical-align: middle; /* 垂直置中 */
-            height: 45px; /* 固定高度，讓表格整齊 */
+            vertical-align: middle; 
+            height: 45px; 
         }
         
-        /* 不透明表頭設定 */
         th { 
             background: linear-gradient(135deg, rgba(123, 163, 163, 0.2) 0%, rgba(168, 196, 162, 0.2) 100%), #ffffff; 
             position: sticky; 
@@ -101,11 +105,10 @@
         }
 
         .products-table th, .products-table td {
-            min-width: 90px; /* ⭐️ 加寬欄位，適應四個字的營業所名稱 */
+            min-width: 90px;
             white-space: nowrap;
         }
 
-        /* 產品名稱欄位特別設定 */
         .products-table th:first-child,
         .products-table td:first-child {
             min-width: 220px;
@@ -123,7 +126,6 @@
             background-color: rgba(123, 163, 163, 0.08);
         }
         
-        /* ⭐️ 分隔列樣式 */
         .metric-separator-row td {
             background-color: #f0f4c3 !important;
             color: #33691e !important;
@@ -146,7 +148,6 @@
         .success-message { background: var(--success-color); color: white; padding: 1rem; border-radius: 15px; margin: 1rem 0; text-align: center; }
         .error-message { background: var(--danger-color); color: white; padding: 1rem; border-radius: 15px; margin: 1rem 0; text-align: center; }
         
-        /* Scrollbar */
         .horizontal-scrollbar::-webkit-scrollbar, .table-main-container::-webkit-scrollbar { height: 12px; }
         .horizontal-scrollbar::-webkit-scrollbar-thumb, .table-main-container::-webkit-scrollbar-thumb { background: var(--primary-color); border-radius: 10px; }
     </style>
@@ -180,7 +181,7 @@
             
             <div class="upload-form">
                 <div class="form-group">
-                    <label class="form-label">選擇年份與月份</label>
+                    <label class="form-label">選擇年份與月份 (上傳或刪除)</label>
                     <div style="display:flex; gap:1rem;">
                         <select id="upload-year" class="form-control">
                             <option value="2020">2020</option><option value="2021">2021</option><option value="2022">2022</option>
@@ -208,6 +209,7 @@
                 <div class="form-actions">
                     <button type="button" class="btn btn-primary" id="upload-btn" disabled>處理Excel檔案</button>
                     <button type="button" class="btn btn-outline" id="reload-cloud-btn">重新載入雲端資料</button>
+                    <button type="button" class="btn btn-danger" id="delete-btn">刪除該月資料</button>
                 </div>
                 <div id="status-messages"></div>
             </div>
@@ -352,6 +354,34 @@
             finally { btn.disabled = false; btn.textContent = '處理Excel檔案'; }
         }
 
+        // ⭐️ 新增：刪除該月資料
+        async function deleteMonthData() {
+            const year = document.getElementById('upload-year').value;
+            const month = document.getElementById('upload-month').value;
+            
+            if(!confirm(`⚠️ 警告：您確定要刪除「${year}年${month}月」的所有資料嗎？此動作無法復原。`)) {
+                return;
+            }
+
+            const btn = document.getElementById('delete-btn');
+            btn.disabled = true; btn.textContent = '刪除中...';
+
+            try {
+                const res = await fetch(`/api/records?year=${year}&month=${month}`, { method: 'DELETE' });
+                if(res.ok) {
+                    showMsg(`✅ 已刪除 ${year}年${month}月 資料`, 'success');
+                    await loadFromCloudflare();
+                } else {
+                    showMsg('❌ 刪除失敗: ' + await res.text(), 'error');
+                }
+            } catch(e) {
+                console.error(e);
+                showMsg('❌ 網路錯誤', 'error');
+            } finally {
+                btn.disabled = false; btn.textContent = '刪除該月資料';
+            }
+        }
+
         async function loadFromCloudflare() {
             document.getElementById('stored-months').textContent = "載入中...";
             try {
@@ -494,7 +524,9 @@
                 html += '</tr>';
             });
 
-            let products = [...new Set(data.map(d => d.product_name))];
+            // ⭐️ 修正：過濾掉「訂單筆數」和「訂單金額」這兩個不應該出現在產品列表的東西
+            let products = [...new Set(data.map(d => d.product_name))]
+                            .filter(p => p !== '訂單筆數' && p !== '訂單金額');
             
             products.sort((a, b) => {
                 const indexA = ALL_PRODUCTS.indexOf(a);
@@ -511,14 +543,10 @@
                     const rowData = data.filter(d => d.product_name === prod && d.metric_type === metricType);
                     const totalValue = rowData.reduce((sum, item) => sum + (item.value || 0), 0);
 
-                    // ⭐️ 邏輯修正：
-                    // 1. 如果是「訂購數量」且名稱含「(贈品)」，則跳過不顯示
                     if (metricType === '訂購數量' && prod.includes('(贈品)')) {
                         return;
                     }
 
-                    // 2. 如果是「贈送數量」，顯示條件：大於0 或 名稱含「(贈品)」
-                    // 3. 如果是「訂購數量」，顯示條件：大於0 (或不做限制)
                     let isVisible = false;
                     
                     if (metricType === '贈送數量') {
@@ -526,7 +554,6 @@
                             isVisible = true;
                         }
                     } else {
-                        // 訂購數量：如果不含(贈品)，通常都顯示，或者也可設 totalValue > 0
                         isVisible = true;
                     }
 
@@ -608,6 +635,8 @@
             document.getElementById('reload-cloud-btn').onclick = loadFromCloudflare;
             document.getElementById('query-btn').onclick = queryData;
             document.getElementById('compare-btn').onclick = compareData;
+            // ⭐️ 綁定刪除按鈕
+            document.getElementById('delete-btn').onclick = deleteMonthData;
         }
         function validateFile(file) {
             if(!file || (!file.name.endsWith('.xls') && !file.name.endsWith('.xlsx'))) return showMsg('格式錯誤', 'error');

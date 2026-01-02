@@ -90,6 +90,18 @@
             z-index: 10; 
         }
         
+        /* ⭐️ 分隔列樣式 */
+        .metric-separator-row td {
+            background-color: #f0f4c3 !important; /* 淺黃綠色背景 */
+            color: #33691e !important;
+            font-weight: bold;
+            text-align: center;
+            padding: 10px;
+            font-size: 1.1rem;
+            border-top: 2px solid #cddc39;
+            border-bottom: 2px solid #cddc39;
+        }
+
         /* Storage Status */
         .storage-status { background: rgba(143, 181, 143, 0.1); padding: 1.5rem; border-radius: 15px; margin-bottom: 2rem; border-left: 4px solid var(--success-color); }
         
@@ -441,7 +453,6 @@
                 html += '</tr>';
             });
 
-            // ⭐️ 修正：不再只抓「訂購數量」，改為抓取資料中出現過的所有產品，確保贈送的產品也能顯示
             let products = [...new Set(data.map(d => d.product_name))];
             
             products.sort((a, b) => {
@@ -450,20 +461,49 @@
                 return (indexA === -1 ? 999 : indexA) - (indexB === -1 ? 999 : indexB);
             });
             
-            ['訂購數量', '贈送數量'].forEach(metric => {
-                html += `<tr style="background:#eee; font-weight:bold;"><td colspan="${SPECIFIED_LOCATIONS.length+1}">${metric}</td></tr>`;
+            // ⭐️ 修正邏輯：明確區分「訂購數量」與「贈送數量」的顯示規則
+            const metricTypes = ['訂購數量', '贈送數量'];
+
+            metricTypes.forEach(metricType => {
+                // 1. 強制顯示分隔列 (加上 metric-separator-row class)
+                html += `<tr class="metric-separator-row"><td colspan="${SPECIFIED_LOCATIONS.length + 1}">📊 ${metricType}</td></tr>`;
+
+                // 2. 顯示產品列
                 products.forEach(prod => {
-                    const rowData = data.filter(d => d.product_name === prod && d.metric_type === metric);
-                    // ⭐️ 移除：if(rowData.length === 0) return;  <-- 移除這行，強制顯示所有列
+                    const rowData = data.filter(d => d.product_name === prod && d.metric_type === metricType);
                     
-                    html += `<tr><td style="text-align:left;">${prod}</td>`;
-                    SPECIFIED_LOCATIONS.forEach(loc => {
-                        const val = rowData.filter(d => d.location === loc).reduce((s,i) => s+i.value, 0);
-                        html += `<td style="color:${val>0?'#333':'#ccc'}">${val>0?val.toLocaleString():'-'}</td>`;
-                    });
-                    html += '</tr>';
+                    // 計算該產品在所有地區的總和
+                    const totalValue = rowData.reduce((sum, item) => sum + (item.value || 0), 0);
+
+                    // ⭐️ 核心過濾邏輯：
+                    // - 如果是「訂購數量」：全部顯示 (您之前沒說要藏)
+                    // - 如果是「贈送數量」：
+                    //    1. 總數 > 0 -> 顯示
+                    //    2. 產品名稱含 "(贈品)" -> 顯示
+                    //    3. 否則 -> 隱藏
+                    let isVisible = false;
+                    if (metricType === '訂購數量') {
+                        isVisible = true; 
+                    } else {
+                        if (totalValue > 0 || prod.includes('(贈品)')) {
+                            isVisible = true;
+                        }
+                    }
+
+                    if (isVisible) {
+                        html += `<tr><td style="text-align:left;">${prod}</td>`;
+                        SPECIFIED_LOCATIONS.forEach(loc => {
+                            const val = rowData.filter(d => d.location === loc).reduce((s,i) => s+i.value, 0);
+                            let style = 'color:#ccc;';
+                            if (loc === '總計') style = 'color:#d32f2f; font-weight:bold; font-size:1.1em;';
+                            else if (val > 0) style = 'color:#333; font-weight:500;';
+                            html += `<td style="${style}">${val > 0 ? val.toLocaleString() : '-'}</td>`;
+                        });
+                        html += '</tr>';
+                    }
                 });
             });
+            
             tbody.innerHTML = html || '<tr><td colspan="100">無資料</td></tr>';
         }
 

@@ -323,12 +323,51 @@
                 const monthKey = `${year}-${month}`;
                 
                 const processed = [];
-                // 讀取總計 C2, C3
-                if(json[1] && json[1][2]) processed.push({month:monthKey, metric_type:'訂單筆數', product_name:'訂單筆數', location:'總計', value:parseInt(json[1][2])||0});
-                if(json[2] && json[2][2]) processed.push({month:monthKey, metric_type:'訂單金額', product_name:'訂單金額', location:'總計', value:parseInt(json[2][2])||0});
-
-                // 讀取產品
                 const headers = json[0] || [];
+
+                // ⭐️ 修正：遍歷所有欄位以獲取每個營業所的「訂單筆數」 (Row 2, Index 1)
+                if (json.length > 1) {
+                    const row = json[1];
+                    for (let j = 2; j < row.length && j < headers.length; j++) {
+                        let loc = headers[j];
+                        if (!loc || SKIP_COLS.includes(loc)) continue;
+                        loc = LOCATION_MAPPING[loc] || loc;
+                        
+                        const val = parseInt(row[j]) || 0;
+                        if (val > 0) {
+                            processed.push({
+                                month: monthKey,
+                                metric_type: '訂單筆數',
+                                product_name: '訂單筆數',
+                                location: loc,
+                                value: val
+                            });
+                        }
+                    }
+                }
+
+                // ⭐️ 修正：遍歷所有欄位以獲取每個營業所的「訂單金額」 (Row 3, Index 2)
+                if (json.length > 2) {
+                    const row = json[2];
+                    for (let j = 2; j < row.length && j < headers.length; j++) {
+                        let loc = headers[j];
+                        if (!loc || SKIP_COLS.includes(loc)) continue;
+                        loc = LOCATION_MAPPING[loc] || loc;
+                        
+                        const val = parseInt(row[j]) || 0;
+                        if (val > 0) {
+                            processed.push({
+                                month: monthKey,
+                                metric_type: '訂單金額',
+                                product_name: '訂單金額',
+                                location: loc,
+                                value: val
+                            });
+                        }
+                    }
+                }
+
+                // 讀取產品 (從第4列開始)
                 for(let i=3; i<json.length; i++) {
                     const row = json[i];
                     if(!row || !row[0] || !row[1]) continue;
@@ -373,7 +412,7 @@
             showMsg(`查詢完成: ${start} ~ ${end}`, 'success');
         }
 
-        // ⭐️ 關鍵修正：確保「訂單筆數」與「訂單金額」顯示在表格最上方
+        // ⭐️ 關鍵修正：顯示總表資訊，且取消非總計欄位的灰色限制
         function updateTable(data) {
             const tbody = document.getElementById('products-table-body');
             const thead = document.getElementById('table-header-row');
@@ -396,9 +435,15 @@
                 html += `<tr><td style="text-align:left; font-weight:bold; background:#f5f5f5;">${metric}</td>`;
                 
                 SPECIFIED_LOCATIONS.forEach(loc => {
-                    // 通常這些指標只有「總計」有值
                     const val = rowData.filter(d => d.location === loc).reduce((s,i) => s+i.value, 0);
-                    const style = loc === '總計' ? 'color:#d32f2f; font-weight:bold; font-size:1.1em;' : 'color:#ccc;';
+                    // ⭐️ 修改：如果是總計，維持紅色粗體；如果是其他且有值，顯示深色，否則淺色
+                    let style = 'color:#ccc;';
+                    if (loc === '總計') {
+                        style = 'color:#d32f2f; font-weight:bold; font-size:1.1em;';
+                    } else if (val > 0) {
+                        style = 'color:#333; font-weight:500;';
+                    }
+                    
                     html += `<td style="${style}">${val > 0 ? val.toLocaleString() : '-'}</td>`;
                 });
                 html += '</tr>';

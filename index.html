@@ -82,9 +82,8 @@
         .products-table, .detailed-table, .ranking-table { width: 100%; border-collapse: collapse; min-width: 1000px; }
         th, td { padding: 0.8rem; border: 1px solid var(--border-color); text-align: center; }
         
-        /* ⭐️ 修正：表頭固定與不透明背景 */
+        /* 不透明表頭 */
         th { 
-            /* 多重背景：上層是漸層，下層是純白，確保不透明 */
             background: linear-gradient(135deg, rgba(123, 163, 163, 0.2) 0%, rgba(168, 196, 162, 0.2) 100%), #ffffff; 
             position: sticky; 
             top: 0; 
@@ -442,7 +441,8 @@
                 html += '</tr>';
             });
 
-            let products = [...new Set(data.filter(d => d.metric_type === '訂購數量').map(d => d.product_name))];
+            // ⭐️ 修正：不再只抓「訂購數量」，改為抓取資料中出現過的所有產品，確保贈送的產品也能顯示
+            let products = [...new Set(data.map(d => d.product_name))];
             
             products.sort((a, b) => {
                 const indexA = ALL_PRODUCTS.indexOf(a);
@@ -454,7 +454,7 @@
                 html += `<tr style="background:#eee; font-weight:bold;"><td colspan="${SPECIFIED_LOCATIONS.length+1}">${metric}</td></tr>`;
                 products.forEach(prod => {
                     const rowData = data.filter(d => d.product_name === prod && d.metric_type === metric);
-                    if(rowData.length === 0) return;
+                    // ⭐️ 移除：if(rowData.length === 0) return;  <-- 移除這行，強制顯示所有列
                     
                     html += `<tr><td style="text-align:left;">${prod}</td>`;
                     SPECIFIED_LOCATIONS.forEach(loc => {

@@ -81,7 +81,15 @@
         .table-main-container { width: 100%; overflow-x: auto; max-height: 600px; border: 1px solid var(--border-color); }
         .products-table, .detailed-table, .ranking-table { width: 100%; border-collapse: collapse; min-width: 1000px; }
         th, td { padding: 0.8rem; border: 1px solid var(--border-color); text-align: center; }
-        th { background: linear-gradient(135deg, rgba(123, 163, 163, 0.2) 0%, rgba(168, 196, 162, 0.2) 100%); position: sticky; top: 0; z-index: 10; }
+        
+        /* ⭐️ 修正：表頭固定與不透明背景 */
+        th { 
+            /* 多重背景：上層是漸層，下層是純白，確保不透明 */
+            background: linear-gradient(135deg, rgba(123, 163, 163, 0.2) 0%, rgba(168, 196, 162, 0.2) 100%), #ffffff; 
+            position: sticky; 
+            top: 0; 
+            z-index: 10; 
+        }
         
         /* Storage Status */
         .storage-status { background: rgba(143, 181, 143, 0.1); padding: 1.5rem; border-radius: 15px; margin-bottom: 2rem; border-left: 4px solid var(--success-color); }
@@ -252,7 +260,6 @@
         const LOCATION_MAPPING = {'新竹市':'益樂多新竹', '中壢':'益樂多中壢', '豐原':'佳樂多', '南區':'優樂多', '三民':'高樂多三民', '鳳山':'高樂多鳳山'};
         const SKIP_COLS = ['雅可樂多公司合計', '優樂多公司小計', '高樂多公司合計', '益樂多公司合計', '佳樂多公司合計', '經銷處合計'];
         
-        // ⭐️ 標準產品順序 (用於排序)
         const ALL_PRODUCTS = [
             "養樂多", "養樂多300LIGHT", "養樂多300", "新養樂多", "優酪乳原味",
             "優酪乳草莓", "優酪乳Light", "優酪乳無加糖", "全脂鮮乳", "高級鮮乳",
@@ -293,7 +300,6 @@
             finally { btn.disabled = false; btn.textContent = '處理Excel檔案'; }
         }
 
-        // 2. 從 Cloudflare 讀取 (⭐️ 強制去重邏輯)
         async function loadFromCloudflare() {
             document.getElementById('stored-months').textContent = "載入中...";
             try {
@@ -301,11 +307,8 @@
                 if(!res.ok) throw new Error("API Error");
                 let cloudData = await res.json();
                 
-                // 1. 先按 ID 倒序排列 (ID越大 = 越晚匯入 = 越新)
                 cloudData.sort((a, b) => b.id - a.id);
 
-                // 2. 使用 Map 進行嚴格去重：Key = "年-月-地區-產品-指標"
-                // 由於已經是倒序，Map.set 會保留遇到的第一筆 (也就是最新的)，舊的同 Key 資料會被忽略
                 const uniqueMap = new Map();
                 cloudData.forEach(item => {
                     const key = `${item.year}-${item.month}-${item.region}-${item.product}-${item.metric}`;
@@ -314,7 +317,6 @@
                     }
                 });
 
-                // 3. 轉回陣列
                 const cleanData = Array.from(uniqueMap.values());
                 
                 salesData = cleanData.map(item => ({
@@ -352,7 +354,6 @@
                 const processed = [];
                 const headers = json[0] || [];
 
-                // 抓取各區的「訂單筆數」(Row 2)
                 if (json.length > 1) {
                     const row = json[1];
                     for (let j = 2; j < row.length && j < headers.length; j++) {
@@ -364,7 +365,6 @@
                     }
                 }
 
-                // 抓取各區的「訂單金額」(Row 3)
                 if (json.length > 2) {
                     const row = json[2];
                     for (let j = 2; j < row.length && j < headers.length; j++) {
@@ -376,7 +376,6 @@
                     }
                 }
 
-                // 讀取產品 (從第4列開始)
                 for(let i=3; i<json.length; i++) {
                     const row = json[i];
                     if(!row || !row[0] || !row[1]) continue;
@@ -428,7 +427,6 @@
 
             let html = '';
 
-            // 1. 總表資訊
             html += `<tr style="background:#e3f2fd; font-weight:bold; color:#0d47a1; text-align:left;"><td colspan="${SPECIFIED_LOCATIONS.length + 1}">📊 總表資訊 (訂單與金額)</td></tr>`;
             
             ['訂單筆數', '訂單金額'].forEach(metric => {
@@ -444,13 +442,11 @@
                 html += '</tr>';
             });
 
-            // 2. 產品明細 (⭐️ 修正：依據 ALL_PRODUCTS 順序進行排序，防止倒序)
             let products = [...new Set(data.filter(d => d.metric_type === '訂購數量').map(d => d.product_name))];
             
             products.sort((a, b) => {
                 const indexA = ALL_PRODUCTS.indexOf(a);
                 const indexB = ALL_PRODUCTS.indexOf(b);
-                // 如果找不到產品(index為-1)，把它放到最後面
                 return (indexA === -1 ? 999 : indexA) - (indexB === -1 ? 999 : indexB);
             });
             
